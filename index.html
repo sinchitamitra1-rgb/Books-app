@@ -465,7 +465,7 @@
 
     // STATE MANAGEMENT
     // Version the shelf cache so old Google Books/fallback results are never reused.
-    const SHELF_CACHE_VERSION = 'open-library-v1';
+    const SHELF_CACHE_VERSION = 'open-library-v2';
     const savedShelfVersion = localStorage.getItem('chapter-live-shelves-version');
     if (savedShelfVersion !== SHELF_CACHE_VERSION) {
       localStorage.removeItem('chapter-live-shelves');
@@ -589,7 +589,7 @@
         renderShelf();
         showToast(`Fresh ${genre} recommendations loaded!`);
       } else {
-        showToast(`Couldn't load live books. Check your internet connection and try again.`);
+        showToast(`Couldn't load live ${genre} books. Try Refresh again.`);
       }
     }
 
@@ -789,24 +789,10 @@
     } 
     document.querySelectorAll('.nav button').forEach(b => b.onclick = () => showView(b.dataset.view));
 
-    async function initializeShelves() {
-      const genres = Object.keys(genreQueries);
-      renderShelf();
-
-      // Load only missing shelves from the live API, one request at a time.
-      for (const genre of genres) {
-        if (!liveShelves[genre] || liveShelves[genre].length === 0) {
-          showToast(`Finding fresh ${genre} books...`);
-          const booksFetched = await fetchOnlineBooks(genre);
-          if (booksFetched) {
-            liveShelves[genre] = booksFetched;
-            localStorage.setItem('chapter-live-shelves', JSON.stringify(liveShelves));
-        localStorage.setItem('chapter-live-shelves-version', SHELF_CACHE_VERSION);
-            renderShelf();
-          }
-        }
-      }
-
+    function initializeShelves() {
+      // Do NOT make API calls when Discover opens.
+      // Each shelf stays empty until the user explicitly taps Refresh.
+      // This keeps Chapter low-volume and makes every refresh a deliberate live lookup.
       renderShelf();
     }
 
