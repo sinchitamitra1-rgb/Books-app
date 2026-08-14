@@ -448,7 +448,9 @@
   </div>
 
   <script>
-    // GENRES & SEARCH QUERIES
+    // LIVE BOOK DISCOVERY — OPEN LIBRARY
+    // Open Library provides a large public catalogue for human-facing book discovery.
+    // We query one genre at a time so Refresh always asks the live API for a new batch.
     const genreQueries = {
       Thriller: ['subject:thriller', 'subject:mystery', 'psychological thriller'],
       Romance: ['subject:romance', 'contemporary romance', 'love story'],
@@ -459,40 +461,17 @@
       Drama: ['subject:drama', 'literary fiction', 'family drama']
     };
 
-    // CURATED FALLBACK BOOKS (Instantly loads if API is blocked by CORS/iframe restrictions)
-    const fallbackBooks = {
-      Thriller: [
-        { id: 't1', title: 'The Silent Patient', author: 'Alex Michaelides', summary: 'Alicia Berenson’s life is seemingly perfect. Then she shoots her husband five times and never speaks another word.', cover: 'https://books.google.com/books/content?id=A2R5DwAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 336, color: '#2f4f4f' },
-        { id: 't2', title: 'Gone Girl', author: 'Gillian Flynn', summary: 'On a warm summer morning in North Carthage, Missouri, it is Nick and Amy Dunne’s fifth wedding anniversary...', cover: 'https://books.google.com/books/content?id=9x_kS3mDq_AC&printsec=frontcover&img=1&zoom=1', pageCount: 432, color: '#8b0000' },
-        { id: 't3', title: 'The Girl on the Train', author: 'Paula Hawkins', summary: 'Rachel takes the same commuter train every morning and night, watching a couple’s perfect life from her window.', cover: 'https://books.google.com/books/content?id=vT6UDAAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 336, color: '#191970' }
-      ],
-      Romance: [
-        { id: 'r1', title: 'The Seven Husbands of Evelyn Hugo', author: 'Taylor Jenkins Reid', summary: 'Aging and reclusive Hollywood movie icon Evelyn Hugo is finally ready to tell the truth about her scandalous life.', cover: 'https://books.google.com/books/content?id=P3R3DwAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 400, color: '#e58b72' },
-        { id: 'r2', title: 'Beach Read', author: 'Emily Henry', summary: 'A romance writer who no longer believes in love and a literary writer stuck in a rut engage in a summer challenge.', cover: 'https://books.google.com/books/content?id=RWrWDwAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 384, color: '#e5b65f' }
-      ],
-      'Erotica & Spice': [
-        { id: 'e1', title: 'Fifty Shades of Grey', author: 'E.L. James', summary: 'When literature student Anastasia Steele interviews successful entrepreneur Christian Grey, she discovers a world of secrets.', cover: '', pageCount: 514, color: '#4a0e17' }
-      ],
-      Horror: [
-        { id: 'h1', title: 'The Shining', author: 'Stephen King', summary: 'Jack Torrance’s new job at the Overlook Hotel is the perfect chance for a fresh start. But as winter sets in, terrifying powers emerge.', cover: 'https://books.google.com/books/content?id=A0I3EAAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 447, color: '#31101e' },
-        { id: 'h2', title: 'Bird Box', author: 'Josh Malerman', summary: 'Something is out there that must not be seen. One glimpse drives a person to deadly violence.', cover: '', pageCount: 272, color: '#2f4f4f' }
-      ],
-      Comedy: [
-        { id: 'c1', title: 'Good Omens', author: 'Neil Gaiman & Terry Pratchett', summary: 'According to The Nice and Accurate Prophecies of Agnes Nutter, Witch, the world will end next Saturday.', cover: 'https://books.google.com/books/content?id=M3A-DwAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 416, color: '#3a3a3a' }
-      ],
-      'Non-fiction': [
-        { id: 'nf1', title: 'Atomic Habits', author: 'James Clear', summary: 'An Easy & Proven Way to Build Good Habits & Break Bad Ones.', cover: 'https://books.google.com/books/content?id=fLU4DwAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 320, color: '#2e8b57' },
-        { id: 'nf2', title: 'Sapiens', author: 'Yuval Noah Harari', summary: 'A Brief History of Humankind explores how Homo sapiens conquered the planet.', cover: '', pageCount: 443, color: '#b8860b' }
-      ],
-      Drama: [
-        { id: 'd1', title: 'A Little Life', author: 'Hanya Yanagihara', summary: 'Four classmates from a small Massachusetts college move to New York to make their way.', cover: 'https://books.google.com/books/content?id=P_S9BAAAQBAJ&printsec=frontcover&img=1&zoom=1', pageCount: 736, color: '#4b0082' }
-      ]
-    };
-
-    // COLOR PALETTES FOR BOOK SPINES
     const spineColors = ['#8b0000', '#2f4f4f', '#4b0082', '#191970', '#2e8b57', '#3a3a3a', '#e8a5a9', '#c7d4a4', '#e3b778', '#d67d82', '#8291a8', '#e5b65f', '#4a0e17', '#6b2d5c', '#800020', '#b8860b', '#31101e', '#535266', '#a65d5e', '#bd9063', '#6d3b47', '#91bbc3', '#e5a171', '#e7cf73', '#76b88d', '#6c99a5', '#e4c08d', '#dfad92', '#e58b72', '#b8a3c7', '#d6b74d', '#9dc4ca', '#d8a760'];
 
     // STATE MANAGEMENT
+    // Version the shelf cache so old Google Books/fallback results are never reused.
+    const SHELF_CACHE_VERSION = 'open-library-v1';
+    const savedShelfVersion = localStorage.getItem('chapter-live-shelves-version');
+    if (savedShelfVersion !== SHELF_CACHE_VERSION) {
+      localStorage.removeItem('chapter-live-shelves');
+      localStorage.setItem('chapter-live-shelves-version', SHELF_CACHE_VERSION);
+    }
+
     let liveShelves = JSON.parse(localStorage.getItem('chapter-live-shelves') || '{}');
     let activeModalBook = null;
     let readHistory = new Set(JSON.parse(localStorage.getItem('chapter-read-history') || '[]'));
@@ -505,73 +484,112 @@
 
     const slider = document.querySelector('#pageSlider');
 
-    function checkMonthlyRefresh(){
-      const now = new Date();
-      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-      const currentMonthName = monthNames[now.getMonth()];
-      const currentYear = now.getFullYear();
+    const OPEN_LIBRARY_SEARCH = 'https://openlibrary.org/search.json';
+    let lastOpenLibraryRequestAt = 0;
 
-      document.getElementById('currentMonthText').textContent = `${currentMonthName} ${currentYear}`;
-      document.getElementById('shelfMonthTitle').textContent = `${currentMonthName} bookshelf`;
-      document.getElementById('monthlyName').textContent = currentMonthName;
-
-      const lastSavedMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
-      const previousMonthKey = localStorage.getItem('chapter-last-active-month');
-
-      if (previousMonthKey && previousMonthKey !== lastSavedMonthKey) {
-        Object.keys(genreQueries).forEach(genre => refreshGenreOnline(genre));
-        monthly = 0; 
-        showToast(`✨ Welcome to ${currentMonthName}! Shelves updated online.`);
-      }
-      localStorage.setItem('chapter-last-active-month', lastSavedMonthKey);
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
-    // SMART FETCH WITH AUTOMATIC FALLBACK
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function waitForOpenLibraryRateLimit() {
+      const minimumGap = 1100;
+      const elapsed = Date.now() - lastOpenLibraryRequestAt;
+      if (elapsed < minimumGap) {
+        await sleep(minimumGap - elapsed);
+      }
+      lastOpenLibraryRequestAt = Date.now();
+    }
+
     async function fetchOnlineBooks(genre) {
       try {
+        await waitForOpenLibraryRateLimit();
+
         const queries = genreQueries[genre] || [genre];
         const randomQuery = queries[Math.floor(Math.random() * queries.length)];
-        const randomStartIndex = Math.floor(Math.random() * 15); 
-        
-        const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(randomQuery)}&startIndex=${randomStartIndex}&maxResults=8&printType=books`;
+        const randomPage = Math.floor(Math.random() * 20) + 1;
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
+        const params = new URLSearchParams({
+          q: randomQuery,
+          sort: 'random',
+          page: String(randomPage),
+          limit: '12',
+          fields: 'key,title,author_name,first_publish_year,cover_i,first_sentence,number_of_pages_median'
+        });
+
+        const response = await fetch(`${OPEN_LIBRARY_SEARCH}?${params.toString()}`, {
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Open Library HTTP ${response.status}`);
+        }
+
         const data = await response.json();
+        const docs = Array.isArray(data.docs) ? data.docs : [];
 
-        if (data.items && data.items.length > 0) {
-          return data.items.map(item => {
-            const info = item.volumeInfo;
-            let coverUrl = info.imageLinks ? (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail || '').replace('http://', 'https://') : '';
+        const results = docs
+          .filter(book => book && book.title)
+          .map((book, index) => {
+            const author = Array.isArray(book.author_name) && book.author_name.length
+              ? book.author_name.slice(0, 2).join(', ')
+              : 'Unknown Author';
+
+            const firstSentence = Array.isArray(book.first_sentence)
+              ? book.first_sentence[0]
+              : book.first_sentence;
+
+            const summary = firstSentence
+              ? String(firstSentence).replace(/<[^>]*>/g, '').slice(0, 260)
+              : `A ${genre.toLowerCase()} recommendation from the Open Library catalogue${book.first_publish_year ? `, first published in ${book.first_publish_year}` : ''}.`;
+
+            const cover = book.cover_i
+              ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg`
+              : '';
 
             return {
-              id: item.id,
-              title: info.title || 'Untitled',
-              author: info.authors ? info.authors.join(', ') : 'Unknown Author',
-              summary: info.description ? info.description.replace(/<[^>]*>?/gm, '').substring(0, 240) + '...' : 'No summary available for this book.',
-              cover: coverUrl,
-              pageCount: info.pageCount || 300,
+              id: book.key || `${genre}-${Date.now()}-${index}`,
+              title: book.title,
+              author,
+              summary,
+              cover,
+              pageCount: book.number_of_pages_median || 300,
               color: spineColors[Math.floor(Math.random() * spineColors.length)]
             };
           });
+
+        if (!results.length) {
+          throw new Error('Open Library returned no matching books');
         }
+
+        console.log(`Live Open Library results for ${genre}:`, results);
+        return results;
       } catch (err) {
-        console.warn(`API Fetch restricted for ${genre}. Switched to fallback bookshelf.`, err);
+        console.error(`Live book fetch failed for ${genre}:`, err);
+        return null;
       }
-      
-      // Return curated fallbacks if API fetch is blocked or fails
-      return fallbackBooks[genre] || fallbackBooks['Thriller'];
     }
 
     async function refreshGenreOnline(genre) {
-      showToast(`Loading ${genre} books...`);
+      showToast(`Loading fresh ${genre} books...`);
       const fetched = await fetchOnlineBooks(genre);
+
       if (fetched) {
         liveShelves[genre] = fetched;
         localStorage.setItem('chapter-live-shelves', JSON.stringify(liveShelves));
+        localStorage.setItem('chapter-live-shelves-version', SHELF_CACHE_VERSION);
         renderShelf();
-        showToast(`Refreshed ${genre} shelf!`);
+        showToast(`Fresh ${genre} recommendations loaded!`);
+      } else {
+        showToast(`Couldn't load live books. Check your internet connection and try again.`);
       }
     }
 
@@ -773,15 +791,22 @@
 
     async function initializeShelves() {
       const genres = Object.keys(genreQueries);
-      for (let genre of genres) {
+      renderShelf();
+
+      // Load only missing shelves from the live API, one request at a time.
+      for (const genre of genres) {
         if (!liveShelves[genre] || liveShelves[genre].length === 0) {
+          showToast(`Finding fresh ${genre} books...`);
           const booksFetched = await fetchOnlineBooks(genre);
           if (booksFetched) {
             liveShelves[genre] = booksFetched;
+            localStorage.setItem('chapter-live-shelves', JSON.stringify(liveShelves));
+        localStorage.setItem('chapter-live-shelves-version', SHELF_CACHE_VERSION);
+            renderShelf();
           }
         }
       }
-      localStorage.setItem('chapter-live-shelves', JSON.stringify(liveShelves));
+
       renderShelf();
     }
 
@@ -806,7 +831,7 @@
             <div class="shelf-books">
               ${available.length ? available.map((b) => `
                 <button class="shelf-book" style="--book:${b.color}" onclick="openBookModalDetail('${genre}','${b.id}')">
-                  <span class="spine-mark">${b.title}</span>
+                  <span class="spine-mark">${escapeHtml(b.title)}</span>
                 </button>
               `).join('') : '<span style="font-size:12px;color:var(--discover-muted);padding:10px;">Tap ↻ to fetch fresh recommendations!</span>'}
             </div>
