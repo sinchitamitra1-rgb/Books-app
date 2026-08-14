@@ -503,6 +503,55 @@
     let books = 0, targetBooks = 24;
     let monthly = 0, targetMonthly = 4;
 
+    const READING_STATE_KEY = 'chapter-reading-state-v1';
+
+    function saveReadingState(){
+      const state = {
+        title: document.getElementById('currentTitle').textContent,
+        author: document.getElementById('currentAuthor').textContent,
+        maxPages: Number(maxPages),
+        start: Number(start),
+        currentPage: Number(slider.value),
+        annualPages: Number(annualPages),
+        targetPages: Number(targetPages),
+        books: Number(books),
+        targetBooks: Number(targetBooks),
+        monthly: Number(monthly),
+        targetMonthly: Number(targetMonthly)
+      };
+      localStorage.setItem(READING_STATE_KEY, JSON.stringify(state));
+    }
+
+    function loadReadingState(){
+      try{
+        const state = JSON.parse(localStorage.getItem(READING_STATE_KEY) || 'null');
+        if(!state) return false;
+
+        document.getElementById('currentTitle').textContent = state.title || 'The Night Circus';
+        document.getElementById('coverText').textContent = state.title || 'The Night Circus';
+        document.getElementById('currentAuthor').textContent = state.author || 'Erin Morgenstern';
+
+        maxPages = Number(state.maxPages) || 502;
+        start = Math.max(0, Math.min(Number(state.start) || 0, maxPages));
+
+        annualPages = Math.max(0, Number(state.annualPages) || 0);
+        targetPages = Math.max(1, Number(state.targetPages) || 8000);
+        books = Math.max(0, Number(state.books) || 0);
+        targetBooks = Math.max(1, Number(state.targetBooks) || 24);
+        monthly = Math.max(0, Number(state.monthly) || 0);
+        targetMonthly = Math.max(1, Number(state.targetMonthly) || 4);
+
+        slider.max = maxPages;
+        slider.value = Math.max(0, Math.min(Number(state.currentPage) || 0, maxPages));
+        document.getElementById('totalPages').textContent = maxPages;
+
+        return true;
+      }catch(e){
+        console.error('Could not restore reading state:',e);
+        return false;
+      }
+    }
+
     const slider = document.querySelector('#pageSlider');
 
     const OPEN_LIBRARY_SEARCH = 'https://openlibrary.org/search.json';
@@ -680,7 +729,7 @@
       }
     }
     
-    slider.addEventListener('input', sliderUI); 
+    slider.addEventListener('input', () => { sliderUI(); saveReadingState(); }); 
 
     function triggerInkSplat(){
       const container = document.getElementById('inkContainer');
@@ -745,6 +794,7 @@
       document.getElementById('totalPages').textContent = maxPages;
 
       sliderUI();
+      saveReadingState();
       closeBookModal();
       showToast('Book updated!');
     }
@@ -774,6 +824,7 @@
       start = +slider.value;
 
       updateGoals();
+      saveReadingState();
       closeQuotaModal();
       showToast('Quotas & Progress Updated!');
     }
@@ -883,6 +934,7 @@
         start = 0;
         document.getElementById('totalPages').textContent = maxPages;
         sliderUI();
+        saveReadingState();
       }
       document.getElementById('wishlistBtn').textContent = '✓ SET AS CURRENT BOOK';
       showToast('Loaded into Currently Reading!');
@@ -910,6 +962,12 @@
       localStorage.setItem("chapter-last-active-month", lastSavedMonthKey);
     }
 
+
+    window.addEventListener('pagehide', saveReadingState);
+    document.addEventListener('visibilitychange', () => {
+      if(document.visibilityState === 'hidden') saveReadingState();
+    });
+
     // INITIALIZATION
     checkMonthlyRefresh();
 
@@ -931,6 +989,7 @@
     noteText.value = localStorage.getItem('chapter-note') || '';
     
     initializeShelves();
+    loadReadingState();
     sliderUI();
     updateGoals();
   </script>
