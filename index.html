@@ -872,6 +872,23 @@
       showToast('Saved to your reading journal');
     }
 
+    function checkMonthlyRefresh(){
+      const now = new Date();
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const currentMonthName = monthNames[now.getMonth()];
+      const currentYear = now.getFullYear();
+      document.getElementById("currentMonthText").textContent = `${currentMonthName} ${currentYear}`;
+      document.getElementById("shelfMonthTitle").textContent = `${currentMonthName} bookshelf`;
+      document.getElementById("monthlyName").textContent = currentMonthName;
+      const lastSavedMonthKey = `${currentYear}-${now.getMonth()}`;
+      const previousMonthKey = localStorage.getItem("chapter-last-active-month");
+      if (previousMonthKey && previousMonthKey !== lastSavedMonthKey) {
+        monthly = 0;
+        showToast(`✨ Welcome to ${currentMonthName}!`);
+      }
+      localStorage.setItem("chapter-last-active-month", lastSavedMonthKey);
+    }
+
     // INITIALIZATION
     checkMonthlyRefresh();
 
