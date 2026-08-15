@@ -125,6 +125,17 @@
     .notes h2,.settings h2{font:calc(28px * var(--font-scale)) Georgia,serif;margin:30px 0 15px}
     .note-box{background:var(--paper);border-radius:22px;padding:18px}
     .note-box textarea{width:100%;border:0;background:var(--cream);min-height:160px;border-radius:13px;padding:13px;font:calc(14px * var(--font-scale)) inherit;color:var(--ink);resize:vertical;outline-color:var(--coral)}
+    .my-read-place{background:var(--paper);border-radius:22px;padding:18px;margin-top:20px}
+    .my-read-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .my-read-head h3{margin:4px 0 0;font:calc(23px * var(--font-scale)) Georgia,serif;color:var(--ink)}
+    .my-read-sub{font-size:calc(12px * var(--font-scale));color:var(--muted);margin:6px 0 14px}
+    .add-read-btn{border:0;background:var(--plum);color:white;border-radius:10px;padding:8px 11px;font-weight:800;cursor:pointer}
+    .read-place-row{display:flex;align-items:center;gap:11px;border-top:1px solid var(--line);padding:11px 0}
+    .read-place-cover{width:42px;height:58px;border-radius:4px;background:var(--plum);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9px;font-weight:800;padding:4px;box-sizing:border-box}
+    .read-place-info{flex:1;min-width:0}.read-place-title{font-weight:800;color:var(--ink);font-size:calc(14px * var(--font-scale))}
+    .read-place-author,.read-place-date{font-size:calc(11px * var(--font-scale));color:var(--muted);margin-top:3px}
+    .read-place-edit{border:0;background:var(--cream);color:var(--plum);border-radius:8px;padding:6px 8px;font-weight:800;cursor:pointer}
+    .read-place-empty{text-align:center;color:var(--muted);padding:18px 4px;font-size:calc(12px * var(--font-scale))}
     .save{border:0;border-radius:12px;padding:10px 16px;background:var(--plum);color:#fff;font-weight:bold;cursor:pointer}
     
     .setting-group{margin-bottom:20px}
@@ -331,14 +342,19 @@
       <div class="bookshelf" id="bookshelf"></div>
     </section>
 
-    <!-- NOTES VIEW -->
-    <section class="view notes" id="notes">
-      <header><h1>chapter.</h1><div class="avatar">✎</div></header>
-      <h2>Reader's notes</h2>
+    <!-- MY SPACE VIEW -->
+    <section class="view notes" id="myspace">
+      <header><h1>chapter.</h1><div class="avatar">✦</div></header>
+      <h2>My Space</h2>
       <div class="note-box">
         <div class="label" style="color:var(--muted);margin-bottom:10px">A thought to keep</div>
         <textarea id="noteText" placeholder="A sentence, a feeling, a favourite quote…"></textarea>
         <button class="save" onclick="saveNote()" style="margin-top:12px">Save note</button>
+      </div>
+      <div class="my-read-place">
+        <div class="my-read-head"><div><div class="label">MY READ PLACE</div><h3>Books I've read</h3></div><button class="add-read-btn" onclick="openReadPlaceEditor()">＋ Add</button></div>
+        <p class="my-read-sub">Finished books live here.</p>
+        <div id="readPlaceList"></div>
       </div>
     </section>
 
@@ -399,9 +415,20 @@
   <nav class="nav">
     <button class="active" data-view="home"><span class="icon">▰</span><span>Progress</span></button>
     <button data-view="recommendations"><span class="icon">✦</span><span>Discover</span></button>
-    <button data-view="notes"><span class="icon">✎</span><span>Notes</span></button>
+    <button data-view="myspace"><span class="icon">✦</span><span>My Space</span></button>
     <button data-view="settings"><span class="icon">⚙</span><span>Settings</span></button>
   </nav>
+
+  <!-- MY READ PLACE EDITOR -->
+  <div class="modal-overlay" id="readPlaceModal">
+    <div class="modal-card">
+      <h3 id="readPlaceModalTitle">Add a finished book</h3>
+      <label>Book Title</label><input id="readPlaceTitleInput" type="text" placeholder="Book title">
+      <label>Author</label><input id="readPlaceAuthorInput" type="text" placeholder="Author">
+      <label>Date Finished</label><input id="readPlaceDateInput" type="date">
+      <div class="modal-btns"><button class="cancel-btn" onclick="closeReadPlaceEditor()">Cancel</button><button class="save" onclick="saveReadPlaceBook()">Save</button></div>
+    </div>
+  </div>
 
   <!-- EDIT CURRENT BOOK MODAL -->
   <div class="modal-overlay" id="editBookModal">
@@ -717,6 +744,7 @@
         let title = document.getElementById('currentTitle').textContent;
         readHistory.add(title);
         localStorage.setItem('chapter-read-history', JSON.stringify(Array.from(readHistory)));
+        addFinishedBookToReadPlace();
         
         books++;
         monthly++;
@@ -945,6 +973,51 @@
       showToast('Saved to your reading journal');
     }
 
+    const READ_PLACE_KEY = 'chapter-my-read-place-v2';
+    let readPlace = JSON.parse(localStorage.getItem(READ_PLACE_KEY) || '[]');
+    let readPlaceEditIndex = -1;
+
+    function saveReadPlace(){ localStorage.setItem(READ_PLACE_KEY, JSON.stringify(readPlace)); }
+
+    function renderReadPlace(){
+      const el=document.getElementById('readPlaceList');
+      if(!el)return;
+      if(!readPlace.length){el.innerHTML='<div class="read-place-empty">Finish a book and it will appear here. You can also add one manually.</div>';return;}
+      el.innerHTML=readPlace.slice().reverse().map((book,ri)=>{
+        const i=readPlace.length-1-ri;
+        return `<div class="read-place-row"><div class="read-place-cover">${escapeHtml(book.title||'Book')}</div><div class="read-place-info"><div class="read-place-title">${escapeHtml(book.title||'Untitled')}</div><div class="read-place-author">${escapeHtml(book.author||'')}</div><div class="read-place-date">${book.date?'Finished '+escapeHtml(book.date):''}</div></div><button class="read-place-edit" onclick="openReadPlaceEditor(${i})">Edit</button></div>`;
+      }).join('');
+    }
+
+    function openReadPlaceEditor(index=-1){
+      readPlaceEditIndex=index;
+      const b=index>=0?readPlace[index]:{};
+      document.getElementById('readPlaceModalTitle').textContent=index>=0?'Edit finished book':'Add a finished book';
+      document.getElementById('readPlaceTitleInput').value=b.title||'';
+      document.getElementById('readPlaceAuthorInput').value=b.author||'';
+      document.getElementById('readPlaceDateInput').value=b.date||new Date().toISOString().slice(0,10);
+      document.getElementById('readPlaceModal').classList.add('show');
+    }
+    function closeReadPlaceEditor(){document.getElementById('readPlaceModal').classList.remove('show');}
+    function saveReadPlaceBook(){
+      const title=document.getElementById('readPlaceTitleInput').value.trim();
+      if(!title){showToast('Please enter a book title.');return;}
+      const b={title,author:document.getElementById('readPlaceAuthorInput').value.trim(),date:document.getElementById('readPlaceDateInput').value||''};
+      if(readPlaceEditIndex>=0)readPlace[readPlaceEditIndex]=b;else readPlace.push(b);
+      saveReadPlace();renderReadPlace();closeReadPlaceEditor();showToast('✓ Added to My Read Place');
+    }
+    function addFinishedBookToReadPlace(){
+      const title=document.getElementById('currentTitle').textContent.trim();
+      const author=document.getElementById('currentAuthor').textContent.trim();
+      if(!title)return;
+      if(!readPlace.some(b=>String(b.title).trim().toLowerCase()===title.toLowerCase())){
+        readPlace.push({title,author,date:new Date().toISOString().slice(0,10)});
+        saveReadPlace();
+      }
+      renderReadPlace();
+    }
+
+
     function checkMonthlyRefresh(){
       const now = new Date();
       const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -990,6 +1063,7 @@
     
     initializeShelves();
     loadReadingState();
+    renderReadPlace();
     sliderUI();
     updateGoals();
   </script>
